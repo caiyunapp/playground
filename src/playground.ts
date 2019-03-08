@@ -166,8 +166,13 @@ let colorScale = d3.scale.linear<string, number>()
                      .range(["#f59322", "#e8eaeb", "#0877bd"])
                      .clamp(true);
 let iter = 0;
+let i = 0;
+let j = 0;
 let trainData: Example2D[] = [];
 let testData: Example2D[] = [];
+let network_weight: number[][][] = null;
+let network_bias: number[][] = null;
+let network_new: nn.Node[][] = null;
 let network: nn.Node[][] = null;
 let lossTrain = 0;
 let lossTest = 0;
@@ -675,7 +680,7 @@ function addPlusMinusControl(x: number, layerIdx: number) {
         }
         state.networkShape[i]++;
         parametersChanged = true;
-        reset();
+        addNodeThenReset();
       })
     .append("i")
       .attr("class", "material-icons")
@@ -690,7 +695,7 @@ function addPlusMinusControl(x: number, layerIdx: number) {
         }
         state.networkShape[i]--;
         parametersChanged = true;
-        reset();
+        removeNodeThenReset();
       })
     .append("i")
       .attr("class", "material-icons")
@@ -936,6 +941,116 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
   }
   return weights;
 }
+
+function removeNodeThenReset(onStartup=false) {
+  lineChart.reset();
+  state.serialize();
+  if (!onStartup) {
+    userHasInteracted();
+  }
+  //player.pause();
+
+  let suffix = state.numHiddenLayers !== 1 ? "s" : "";
+  d3.select("#layers-label").text("Hidden layer" + suffix);
+  d3.select("#num-layers").text(state.numHiddenLayers);
+
+  // Make a simple network.
+  iter = 0;
+  let numInputs = constructInput(0 , 0).length;
+  let shape = [numInputs].concat(state.networkShape).concat([1]);
+  let outputActivation = (state.problem === Problem.REGRESSION) ?
+      nn.Activations.LINEAR : nn.Activations.TANH;
+  
+  network_bias = new Array<null>(network.length)
+  network_weight = new Array<null>(network.length)
+  for (i=0;i<network.length;i++) {
+          network_bias[i] = new Array<number>(network[i].length)
+          network_weight[i] = new Array<null>(network[i].length)
+          for (iter=0;iter<network[i].length;iter++){
+                  network_bias[i][iter] = network[i][iter].bias;
+                  network_weight[i][iter] = new Array<number>(network[i][iter].inputLinks.length)
+                  for (j=0;j<network[i][iter].inputLinks.length;j++) {
+                      network_weight[i][iter][j] = network[i][iter].inputLinks[j].weight;
+                  }
+          }
+  }
+
+  network_new = nn.buildNetwork(shape, state.activation, outputActivation,
+      state.regularization, constructInputIds(), state.initZero);
+  
+  for (i=0;i<network_new.length;i++) {
+          for (iter=0;iter<network_new[i].length;iter++){
+                  network_new[i][iter].bias = network_bias[i][iter];
+                  for (j=0;j<network_new[i][iter].inputLinks.length;j++) {
+                      network_new[i][iter].inputLinks[j].weight = network_weight[i][iter][j];
+                      console.log(network_new[i][iter].inputLinks[j].weight, network_weight[i][iter][j]);
+                  }
+          }
+  }
+
+  network = network_new;
+  lossTrain = getLoss(network, trainData);
+  lossTest = getLoss(network, testData);
+  drawNetwork(network);
+  updateUI(true);
+};
+
+function addNodeThenReset(onStartup=false) {
+  lineChart.reset();
+  state.serialize();
+  if (!onStartup) {
+    userHasInteracted();
+  }
+  //player.pause();
+
+  let suffix = state.numHiddenLayers !== 1 ? "s" : "";
+  d3.select("#layers-label").text("Hidden layer" + suffix);
+  d3.select("#num-layers").text(state.numHiddenLayers);
+
+  // Make a simple network.
+  iter = 0;
+  let numInputs = constructInput(0 , 0).length;
+  let shape = [numInputs].concat(state.networkShape).concat([1]);
+  let outputActivation = (state.problem === Problem.REGRESSION) ?
+      nn.Activations.LINEAR : nn.Activations.TANH;
+  
+  network_bias = new Array<null>(network.length)
+  network_weight = new Array<null>(network.length)
+  for (i=0;i<network.length;i++) {
+          network_bias[i] = new Array<number>(network[i].length)
+          network_weight[i] = new Array<null>(network[i].length)
+          for (iter=0;iter<network[i].length;iter++){
+                  network_bias[i][iter] = network[i][iter].bias;
+                  network_weight[i][iter] = new Array<number>(network[i][iter].inputLinks.length)
+                  for (j=0;j<network[i][iter].inputLinks.length;j++) {
+                      network_weight[i][iter][j] = network[i][iter].inputLinks[j].weight;
+                  }
+          }
+  }
+
+  network_new = nn.buildNetwork(shape, state.activation, outputActivation,
+      state.regularization, constructInputIds(), state.initZero);
+  
+  console.log("length",network.length);
+  for (i=0;i<network.length;i++) {
+          console.log("length",network[i].length);
+          for (iter=0;iter<network[i].length;iter++){
+                  console.log(i,iter,network[i][iter], network_new[i][iter]);
+                  network_new[i][iter].bias = network_bias[i][iter];
+                  for (j=0;j<network[i][iter].inputLinks.length;j++) {
+                      network_new[i][iter].inputLinks[j].weight = network_weight[i][iter][j];
+                      console.log(network_new[i][iter].inputLinks[j].weight, network_weight[i][iter][j]);
+                  }
+          }
+  }
+
+  network = network_new;
+  lossTrain = getLoss(network, trainData);
+  lossTest = getLoss(network, testData);
+  drawNetwork(network);
+  updateUI(true);
+};
+
 
 function reset(onStartup=false) {
   lineChart.reset();
